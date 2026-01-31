@@ -1,0 +1,24 @@
+{
+  "name": "git-atomic-check",
+  "version": "1.0.0",
+  "description": "Check if git commits are atomic/self-contained",
+  "main": "dist/index.js",
+  "bin": {
+    "git-atomic-check": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": ["git", "commit", "atomic", "lint", "cli"],
+  "author": "Mengyang Liu",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+  }
+}
