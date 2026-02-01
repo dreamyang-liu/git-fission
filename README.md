@@ -1,66 +1,139 @@
-# git-atomic-check
+# git-fission
 
-```
-   ⚛️  git-atomic-check
-  ╭─────────────────────╮
-  │  ✓ One thing only   │
-  │  ✓ Small & focused  │
-  │  ✓ Clean history    │
-  ╰─────────────────────╯
-```
+<p align="center">
+  <img src="logo.svg" alt="git-fission logo" width="400"/>
+</p>
 
-Check if your unpushed git commits are atomic/self-contained. **Now in TypeScript for faster startup!**
+<p align="center">
+  <strong>Split large git commits into atomic pieces using AI</strong><br>
+  <em>Like nuclear fission — a neutron hits a heavy nucleus and splits it into smaller, more stable fragments.</em>
+</p>
+
+---
+
+## What is git-fission?
+
+`git-fission` analyzes your git commits and helps you split large, non-atomic commits into smaller, focused pieces. It uses AI (Claude via AWS Bedrock) to understand the semantic meaning of your changes and suggest logical splits.
+
+A commit is considered **atomic** if it:
+- Does **one thing** (single logical change)
+- Is **reasonably small** (not too many files/lines)
+- Has **related changes** (files in same area)
+- Has a **clear, descriptive commit message**
 
 ## Installation
 
 ```bash
-# Clone and build
-cd ~/clawd/tools/git-atomic-check
-npm install && npm run build
+# Clone the repository
+git clone https://github.com/dreamyang-liu/git-fission.git
+cd git-fission
 
-# Link globally
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Link globally (optional)
 npm link
 # or
-ln -s "$(pwd)/dist/index.js" ~/.local/bin/git-atomic-check
+ln -s "$(pwd)/dist/index.js" ~/.local/bin/git-fission
 ```
 
 ## Usage
 
+### Check commits for atomicity
+
 ```bash
-# Heuristic check (fast, offline)
-git-atomic-check
+# Check all unpushed commits (fast, offline)
+git-fission
 
-# LLM semantic analysis (uses AWS Bedrock)
-git-atomic-check --llm
+# Check with LLM analysis (requires AWS credentials)
+git-fission --llm
 
-# Use specific model
-git-atomic-check --llm --model us.anthropic.claude-sonnet-4-20250514-v1:0
+# Check last N commits
+git-fission -n 3
 
-# Check last 3 commits
-git-atomic-check -n 3
-
-# Strict mode
-git-atomic-check --strict
-
-# Split a non-atomic commit
-git-atomic-check --split HEAD
-git-atomic-check --split HEAD --dry-run
+# Use stricter thresholds
+git-fission --strict
 ```
 
-## Features
+### Split a commit
 
-- **Heuristic Analysis**: Fast offline check for file count, line count, directory spread, message quality
-- **LLM Analysis**: Deep semantic analysis using AWS Bedrock Claude models
-- **Auto-Split**: Automatically split large commits into atomic ones using LLM
+```bash
+# Split the last commit into atomic pieces
+git-fission --split HEAD
+
+# Preview the split without executing
+git-fission --split HEAD --dry-run
+
+# Split a specific commit
+git-fission --split abc1234
+```
+
+## How it works
+
+```
+                                              ·
+                                         ◦
+                                    ·  ◦
+                               ◦              ⬤━━━━▶
+        ╭─────────╮      ·
+        │ ◉  ◉  ◉ │   ◦          ⬤━━━━━━━▶
+●━━━━▶  │ ◉  ◉  ◉ │
+        │ ◉  ◉  ◉ │   ◦          ⬤━━━━━━━▶
+        ╰─────────╯      ·
+                               ◦              ⬤━━━━▶
+                                    ◦  ·
+                                         ◦
+                                              ·
+
+                        ⚛  git-fission
+                  Split commits into atomic pieces
+```
+
+1. **Neutron (your command)** hits the nucleus (your large commit)
+2. **Fission occurs** — AI analyzes and splits the diff into logical pieces
+3. **Fragments fly out** — multiple atomic commits are created
+4. **Chain reaction** — cleaner git history!
+
+## Example
+
+Before:
+```
+abc1234 feat: Add user auth, API endpoints, database models, and tests
+```
+
+After running `git-fission --split abc1234`:
+```
+def5678 feat(auth): Add user authentication middleware
+ghi9012 feat(api): Add user CRUD endpoints
+jkl3456 feat(db): Add User and Session models
+mno7890 test: Add user authentication tests
+```
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-n, --number <n>` | Check last n unpushed commits |
+| `--strict` | Use stricter thresholds |
+| `-v, --verbose` | Verbose output |
+| `--llm` | Use LLM for semantic analysis |
+| `--model <id>` | Bedrock model ID for analysis |
+| `--split <commit>` | Split a commit into atomic commits |
+| `--split-model <id>` | Model for split analysis |
+| `--dry-run` | Preview split without executing |
+| `-h, --help` | Show help |
 
 ## Environment Variables
 
-```bash
-export AWS_BEARER_TOKEN_BEDROCK=...      # Bearer token for Bedrock
-export AWS_REGION=us-west-2              # AWS region
-export GIT_ATOMIC_CHECK_MODEL=...        # Default model for --llm
-export GIT_ATOMIC_CHECK_SPLIT_MODEL=...  # Default model for --split
-```
+| Variable | Description |
+|----------|-------------|
+| `AWS_BEARER_TOKEN_BEDROCK` | Bearer token for Bedrock API |
+| `AWS_REGION` | AWS region (default: `us-west-2`) |
+| `GIT_FISSION_MODEL` | Default model for analysis |
+| `GIT_FISSION_SPLIT_MODEL` | Default model for split |
 
 ## Available Models
 
@@ -68,6 +141,20 @@ export GIT_ATOMIC_CHECK_SPLIT_MODEL=...  # Default model for --split
 |-------|----------|
 | `us.anthropic.claude-3-5-haiku-20241022-v1:0` | Default for `--llm` (fast) |
 | `us.anthropic.claude-sonnet-4-20250514-v1:0` | Default for `--split` (accurate) |
+
+## Features
+
+- **Heuristic Analysis**: Fast offline check for file count, line count, directory spread, message quality
+- **LLM Analysis**: Deep semantic analysis using AWS Bedrock Claude models
+- **Auto-Split**: Automatically split large commits into atomic ones using LLM
+- **Patch Validation**: Validates and auto-fixes common LLM patch generation issues
+- **Retry Logic**: Automatically retries with feedback if patch generation fails
+
+## Requirements
+
+- Node.js 18+
+- AWS credentials configured (for LLM features)
+- Git repository
 
 ## License
 
