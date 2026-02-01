@@ -40,11 +40,3 @@ export interface SplitPlan {
     description: string;
   }>;
 }
-
-export interface Thresholds {
-  maxFiles: number;
-  maxInsertions: number;
-  maxDeletions: number;
-  maxDirs: number;
-  minMsgLen: number;
-}

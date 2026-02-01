@@ -17,7 +17,6 @@ async function main() {
 
   const flags = {
     n: undefined as number | undefined,
-    strict: false,
     verbose: false,
     model: process.env.GIT_FISSION_MODEL || DEFAULT_MODEL,
     split: undefined as string | undefined,
@@ -29,7 +28,6 @@ async function main() {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-n' || arg === '--number') flags.n = parseInt(args[++i]);
-    else if (arg === '--strict') flags.strict = true;
     else if (arg === '-v' || arg === '--verbose') flags.verbose = true;
     else if (arg === '--model') flags.model = args[++i];
     else if (arg === '--split') flags.split = args[++i];
@@ -45,7 +43,6 @@ Usage: git-fission [options]
 
 Options:
   -n, --number <n>     Check last n unpushed commits
-  --strict             Use stricter thresholds
   -v, --verbose        Verbose output
   --model <id>         Bedrock model ID for analysis
   --split <commit>     Split a commit into atomic commits
@@ -95,7 +92,7 @@ Environment:
       continue;
     }
 
-    const report = await checkCommitAtomicity(commit, flags.strict, true, flags.model);
+    const report = await checkCommitAtomicity(commit, flags.model);
     printReport(report, flags.verbose);
 
     if (!report.isAtomic) allAtomic = false;

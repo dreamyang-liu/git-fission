@@ -36,9 +36,3 @@ ${c.dim}                  Split commits into atomic pieces${c.reset}
 // Model configuration
 export const DEFAULT_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
 export const SPLIT_MODEL = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
-
-// Thresholds for atomicity checking
-export const THRESHOLDS = {
-  normal: { maxFiles: 10, maxInsertions: 300, maxDeletions: 300, maxDirs: 3, minMsgLen: 10 },
-  strict: { maxFiles: 5, maxInsertions: 100, maxDeletions: 100, maxDirs: 2, minMsgLen: 20 },
-};
