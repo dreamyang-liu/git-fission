@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 /**
- * git-atomic-check: Check if unpushed commits are atomic/self-contained.
- * 
+ * git-fission: Split large commits into atomic pieces using AI.
+ *
+ * Like nuclear fission - a neutron hits a heavy nucleus and splits it
+ * into smaller, more stable fragments. This tool does the same for
+ * your commits: analyze a large commit and split it into atomic pieces.
+ *
  * A commit is considered atomic if it:
  * 1. Does one thing (single logical change)
  * 2. Is reasonably small (not too many files/lines)
@@ -25,12 +29,22 @@ const c = {
 };
 
 const LOGO = `
-${c.cyan}   ⚛️  git-atomic-check${c.reset}
-${c.dim}  ╭─────────────────────╮
-  │  ✓ One thing only   │
-  │  ✓ Small & focused  │
-  │  ✓ Clean history    │
-  ╰─────────────────────╯${c.reset}
+${c.dim}                                                             ${c.cyan}·${c.reset}
+${c.dim}                                                        ${c.cyan}◦${c.reset}
+${c.dim}                                                   ${c.cyan}·  ◦${c.reset}
+${c.dim}                                              ${c.cyan}◦${c.reset}              ${c.green}⬤━━━━▶${c.reset}
+${c.dim}                       ${c.yellow}╭─────────╮${c.reset}      ${c.cyan}·${c.reset}
+${c.dim}                       ${c.yellow}│${c.reset}${c.bold} ◉  ◉  ◉ ${c.reset}${c.yellow}│${c.reset}   ${c.cyan}◦${c.reset}          ${c.green}⬤━━━━━━━▶${c.reset}
+${c.bold}       ●${c.reset}${c.dim}━━━━━━━━━▶${c.reset}    ${c.yellow} │${c.reset}${c.bold} ◉  ◉  ◉ ${c.reset}${c.yellow}│${c.reset}
+${c.dim}                       ${c.yellow}│${c.reset}${c.bold} ◉  ◉  ◉ ${c.reset}${c.yellow}│${c.reset}   ${c.cyan}◦${c.reset}          ${c.green}⬤━━━━━━━▶${c.reset}
+${c.dim}                       ${c.yellow}╰─────────╯${c.reset}      ${c.cyan}·${c.reset}
+${c.dim}                                              ${c.cyan}◦${c.reset}              ${c.green}⬤━━━━▶${c.reset}
+${c.dim}                                                   ${c.cyan}◦  ·${c.reset}
+${c.dim}                                                        ${c.cyan}◦${c.reset}
+${c.dim}                                                             ${c.cyan}·${c.reset}
+
+${c.bold}${c.green}                        ⚛  git-fission${c.reset}
+${c.dim}                  Split commits into atomic pieces${c.reset}
 `;
 
 // Config
@@ -526,7 +540,7 @@ async function executeSplit(commit: CommitInfo, plan: SplitPlan, dryRun: boolean
   }
 
   // Create temp directory for patches
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-atomic-split-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-fission-'));
   console.log(`\n${c.dim}Saving patches to ${tmpDir}${c.reset}`);
 
   // Save patches to temp files
@@ -673,9 +687,9 @@ async function main() {
     strict: false,
     verbose: false,
     llm: false,
-    model: process.env.GIT_ATOMIC_CHECK_MODEL || DEFAULT_MODEL,
+    model: process.env.GIT_FISSION_MODEL || DEFAULT_MODEL,
     split: undefined as string | undefined,
-    splitModel: process.env.GIT_ATOMIC_CHECK_SPLIT_MODEL || SPLIT_MODEL,
+    splitModel: process.env.GIT_FISSION_SPLIT_MODEL || SPLIT_MODEL,
     dryRun: false,
     help: false,
   };
@@ -696,7 +710,7 @@ async function main() {
   if (flags.help) {
     console.log(`
 ${LOGO}
-Usage: git-atomic-check [options]
+Usage: git-fission [options]
 
 Options:
   -n, --number <n>     Check last n unpushed commits
@@ -712,6 +726,8 @@ Options:
 Environment:
   AWS_BEARER_TOKEN_BEDROCK   Bearer token for Bedrock
   AWS_REGION                 AWS region (default: us-west-2)
+  GIT_FISSION_MODEL          Default model for analysis
+  GIT_FISSION_SPLIT_MODEL    Default model for split
 `);
     process.exit(0);
   }
@@ -765,7 +781,7 @@ Environment:
     process.exit(0);
   } else {
     console.log(`${c.red}✗ Some commits are not atomic${c.reset} (avg score: ${avgScore.toFixed(0)}/100)`);
-    console.log(`\n${c.yellow}Tip: Use 'git-atomic-check --split HEAD' to split the last commit.${c.reset}`);
+    console.log(`\n${c.yellow}Tip: Use 'git-fission --split HEAD' to split the last commit.${c.reset}`);
     process.exit(1);
   }
 }

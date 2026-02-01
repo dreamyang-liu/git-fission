@@ -1,17 +1,17 @@
 {
-  "name": "git-atomic-check",
+  "name": "git-fission",
   "version": "1.0.0",
-  "description": "Check if git commits are atomic/self-contained",
+  "description": "Split large git commits into atomic pieces using AI - like nuclear fission",
   "main": "dist/index.js",
   "bin": {
-    "git-atomic-check": "./dist/index.js"
+    "git-fission": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts"
   },
-  "keywords": ["git", "commit", "atomic", "lint", "cli"],
+  "keywords": ["git", "commit", "atomic", "split", "fission", "ai", "cli"],
   "author": "Mengyang Liu",
   "license": "MIT",
   "devDependencies": {
