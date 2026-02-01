@@ -130,8 +130,36 @@ mno7890 test: Add user authentication tests
 
 - **LLM Analysis**: Deep semantic analysis using AWS Bedrock Claude models
 - **Auto-Split**: Automatically split large commits into atomic ones
+- **Hunk-Level Splitting**: Splits at diff hunk boundaries (contiguous blocks of changes)
 - **Patch Validation**: Validates and auto-fixes common LLM patch generation issues
 - **Retry Logic**: Automatically retries with feedback if patch generation fails
+
+## How Splitting Works
+
+git-fission operates at the **hunk level**. A hunk is a contiguous block of changes in a diff (the sections starting with `@@`). The AI analyzes each hunk and classifies them into logical groups, then creates separate commits for each group.
+
+```
+Original commit with 3 hunks in file.ts:
+┌─────────────────────────────────┐
+│ @@ -10,5 +10,8 @@  ← Hunk 1    │
+│ @@ -50,3 +53,6 @@  ← Hunk 2    │
+│ @@ -100,4 +106,4 @@ ← Hunk 3   │
+└─────────────────────────────────┘
+           ↓ git-fission
+┌─────────────┐  ┌─────────────┐
+│ Commit A    │  │ Commit B    │
+│ Hunk 1 + 3  │  │ Hunk 2      │
+└─────────────┘  └─────────────┘
+```
+
+### Current Limitations
+
+- **Hunk-level granularity**: If two logically separate changes are within the same hunk (close together in the file), they cannot be split apart
+- Works best when different concerns are in different parts of the file
+
+### Future Work
+
+- **Line-level splitting**: Split individual lines within the same hunk into different commits (similar to `git add -p` interactive staging but automated)
 
 ## Requirements
 
