@@ -117,8 +117,11 @@ export async function executeSplit(commit: CommitInfo, plan: SplitPlan, dryRun: 
   return true;
 }
 
-export async function splitCommit(commitRef: string, model: string, dryRun: boolean): Promise<boolean> {
+export async function splitCommit(commitRef: string, model: string, dryRun: boolean, lineLevel: boolean = false, instruction?: string): Promise<boolean> {
   console.log(`${c.bold}Analyzing commit for split...${c.reset}`);
+  if (instruction) {
+    console.log(`  ${c.cyan}Custom instruction: ${instruction.slice(0, 200)}${instruction.length > 200 ? '...' : ''}${c.reset}`);
+  }
 
   const { ok, output: hash } = runGit(['rev-parse', commitRef]);
   if (!ok) {
@@ -139,7 +142,7 @@ export async function splitCommit(commitRef: string, model: string, dryRun: bool
   }
 
   console.log(`\n${c.dim}Generating split plan with LLM...${c.reset}`);
-  const plan = await generateSplitPlan(commit, model);
+  const plan = await generateSplitPlan(commit, model, instruction);
 
   if (!plan) {
     console.log(`${c.red}Error: LLM failed to generate a split plan.${c.reset}`);

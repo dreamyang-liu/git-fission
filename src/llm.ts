@@ -3,6 +3,7 @@
  */
 
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import fetch from 'node-fetch';
 import type { CommitInfo, LLMAnalysis, SplitPlan } from './types.js';
 
 export async function callBedrock(prompt: string, model: string, maxTokens = 1024): Promise<string | null> {
@@ -125,7 +126,8 @@ function formatHunkForLLM(hunk: { id: number; startLine: number; content: string
 export async function classifyHunks(
   commit: CommitInfo,
   files: ParsedFileDiff[],
-  model: string
+  model: string,
+  instruction?: string
 ): Promise<HunkClassification | null> {
   // Build display for LLM - show hunks with their IDs and actual diff content
   let hunksDisplay = '';
@@ -137,12 +139,14 @@ export async function classifyHunks(
     }
   }
 
+  const customInstruction = instruction ? `\n**Custom Instruction:** ${instruction}\n` : '';
+
   const prompt = `You are a git expert. Analyze this commit and decide how to split it into atomic commits.
 
 **Original Commit Message:** ${commit.message}
 **Files Changed:** ${commit.filesChanged}
 **Stats:** +${commit.insertions}/-${commit.deletions} lines
-
+${customInstruction}
 **Hunks to classify (each hunk is a contiguous block of changes):**
 ${hunksDisplay}
 
@@ -153,6 +157,9 @@ Rules:
 2. Related changes should stay together (e.g., a function and its callers)
 3. Hunks from the same file that are related should go together
 4. Import statement hunks should go with the code that uses them
+5. **Dependency Order**: Order commits so dependencies are introduced BEFORE code that uses them. If commit B depends on code from commit A, commit A must come first.
+6. **Build-ability**: Each commit must be independently buildable. Don't split in a way that would break compilation (e.g., adding a function call without the function definition, using a type before it's defined).
+7. **No Forward References**: If new code references other new code in the same commit, they must stay together or the referenced code must come in an earlier commit.
 
 Respond in JSON:
 {
@@ -191,7 +198,7 @@ Only output the JSON.`;
 /**
  * Generate split plan using hunk-level classification
  */
-export async function generateSplitPlan(commit: CommitInfo, model: string): Promise<SplitPlan | null> {
+export async function generateSplitPlan(commit: CommitInfo, model: string, instruction?: string): Promise<SplitPlan | null> {
   if (!commit.diff) return null;
 
   // Parse diff into hunks
@@ -205,7 +212,7 @@ export async function generateSplitPlan(commit: CommitInfo, model: string): Prom
   console.log(`  ${totalHunks} hunks across ${files.length} files`);
 
   // Ask LLM to classify hunks
-  const classification = await classifyHunks(commit, files, model);
+  const classification = await classifyHunks(commit, files, model, instruction);
   if (!classification) return null;
 
   // Build patches from hunk classification

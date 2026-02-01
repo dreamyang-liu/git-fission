@@ -22,6 +22,7 @@ async function main() {
     splitModel: process.env.GIT_FISSION_SPLIT_MODEL || SPLIT_MODEL,
     dryRun: false,
     help: false,
+    instruction: undefined as string | undefined,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -32,6 +33,7 @@ async function main() {
     else if (arg === '--split-model') flags.splitModel = args[++i];
     else if (arg === '--dry-run') flags.dryRun = true;
     else if (arg === '-h' || arg === '--help') flags.help = true;
+    else if (arg === '--instruction' || arg === '-i') flags.instruction = args[++i];
   }
 
   if (flags.help) {
@@ -48,6 +50,7 @@ Options:
   --split <commit>     Split a commit into atomic commits (default: HEAD)
   --split-model <id>   Model for split analysis
   --dry-run            Preview split without executing
+  -i, --instruction    Custom instruction for the LLM (e.g., "Keep test files separate")
   -h, --help           Show help
 
 Environment:
@@ -68,7 +71,7 @@ Environment:
 
   // Split mode
   if (flags.split) {
-    const success = await splitCommit(flags.split, flags.splitModel, flags.dryRun);
+    const success = await splitCommit(flags.split, flags.splitModel, flags.dryRun, false, flags.instruction);
     process.exit(success ? 0 : 1);
   }
 
