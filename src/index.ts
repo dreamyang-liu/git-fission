@@ -520,11 +520,10 @@ async function executeSplit(commit: CommitInfo, plan: SplitPlan, dryRun: boolean
   }
 
   // Confirm
-  process.stdout.write(`\n${c.yellow}This will hard reset commit ${commit.shortHash} and apply ${plan.splits.length} patches.${c.reset}\nContinue? [y/N] `);
-  
   const readline = await import('readline');
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise<string>(resolve => rl.question('', resolve));
+  const prompt = `\n${c.yellow}This will hard reset commit ${commit.shortHash} and apply ${plan.splits.length} patches.${c.reset}\nContinue? [y/N] `;
+  const answer = await new Promise<string>(resolve => rl.question(prompt, resolve));
   rl.close();
   
   if (answer.toLowerCase() !== 'y') {
