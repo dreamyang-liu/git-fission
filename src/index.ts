@@ -77,7 +77,7 @@ interface SplitPlan {
   reasoning: string;
   splits: Array<{
     message: string;
-    files: string[];
+    diff: string;  // The actual unified diff for this commit
     description: string;
   }>;
 }
@@ -269,31 +269,39 @@ Only output the JSON.`;
 }
 
 async function generateSplitPlan(commit: CommitInfo, model: string): Promise<SplitPlan | null> {
-  const filesList = commit.files.map(f => `  - ${f}`).join('\n');
-  const prompt = `You are a git expert. Create a plan to split this commit into multiple atomic commits.
+  const prompt = `You are a git expert. Split this commit's diff into multiple atomic commits.
 
 **Original Commit Message:** ${commit.message}
-**Files Changed (${commit.filesChanged} total):**
-${filesList}
 
 **Full Diff:**
-\`\`\`
+\`\`\`diff
 ${commit.diff || '(diff not available)'}
 \`\`\`
 
-Create a plan to split this into 2-5 atomic commits. Each file should appear in EXACTLY ONE commit.
+Split this into 2-5 atomic commits. For each commit, output the EXACT unified diff format that can be applied with \`git apply\`.
+
+CRITICAL RULES:
+1. Each split must contain a valid unified diff (starting with "diff --git")
+2. The diffs must be complete - include all headers (diff --git, index, ---, +++)
+3. Every hunk from the original diff must appear in exactly ONE split
+4. Do not modify the diff content, just partition it
 
 Respond in JSON format:
 {
   "reasoning": "Brief explanation of how you're splitting this",
   "splits": [
-    { "message": "feat(auth): Add login endpoint", "files": ["src/auth/login.ts"], "description": "What this does" }
+    {
+      "message": "feat(auth): Add login endpoint",
+      "description": "What this commit does",
+      "diff": "diff --git a/file.ts b/file.ts\\nindex abc..def 100644\\n--- a/file.ts\\n+++ b/file.ts\\n@@ -1,3 +1,4 @@\\n+new line\\n existing"
+    }
   ]
 }
 
+IMPORTANT: In the JSON, escape newlines as \\n in the diff field.
 Only output the JSON.`;
 
-  const response = await callBedrock(prompt, model, 2048);
+  const response = await callBedrock(prompt, model, 8192);
   if (!response) return null;
 
   try {
@@ -399,22 +407,32 @@ function printReport(report: AtomicityReport, verbose: boolean) {
 }
 
 async function executeSplit(commit: CommitInfo, plan: SplitPlan, dryRun: boolean): Promise<boolean> {
+  const fs = await import('fs');
+  const path = await import('path');
+  const os = await import('os');
+
   console.log(`\n${c.bold}Split Plan for ${commit.shortHash}:${c.reset}`);
   console.log(`  ${c.dim}${plan.reasoning}${c.reset}\n`);
 
+  // Preview splits
   plan.splits.forEach((split, i) => {
-    const filesStr = split.files.slice(0, 3).join(', ') + (split.files.length > 3 ? ` +${split.files.length - 3} more` : '');
+    const diffLines = split.diff.split('\n').length;
     console.log(`  ${c.cyan}${i + 1}.${c.reset} ${split.message}`);
-    console.log(`     ${c.dim}Files: ${filesStr}${c.reset}`);
+    console.log(`     ${c.dim}${split.description} (${diffLines} lines of diff)${c.reset}`);
   });
 
   if (dryRun) {
     console.log(`\n${c.yellow}Dry run - no changes made.${c.reset}`);
+    // Show diff previews
+    plan.splits.forEach((split, i) => {
+      console.log(`\n${c.bold}--- Patch ${i + 1}: ${split.message} ---${c.reset}`);
+      console.log(c.dim + split.diff.slice(0, 500) + (split.diff.length > 500 ? '\n...(truncated)' : '') + c.reset);
+    });
     return true;
   }
 
   // Confirm
-  process.stdout.write(`\n${c.yellow}This will reset commit ${commit.shortHash} and create ${plan.splits.length} new commits.${c.reset}\nContinue? [y/N] `);
+  process.stdout.write(`\n${c.yellow}This will hard reset commit ${commit.shortHash} and apply ${plan.splits.length} patches.${c.reset}\nContinue? [y/N] `);
   
   const readline = await import('readline');
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -433,17 +451,62 @@ async function executeSplit(commit: CommitInfo, plan: SplitPlan, dryRun: boolean
     return false;
   }
 
-  // Soft reset
-  console.log(`\n${c.dim}Resetting commit...${c.reset}`);
-  runGit(['reset', '--soft', 'HEAD~1']);
-  runGit(['reset', 'HEAD']);
+  // Create temp directory for patches
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-atomic-split-'));
+  console.log(`\n${c.dim}Saving patches to ${tmpDir}${c.reset}`);
 
-  // Create new commits
+  // Save patches to temp files
+  const patchFiles: string[] = [];
   for (const [i, split] of plan.splits.entries()) {
-    console.log(`${c.dim}Creating commit ${i + 1}/${plan.splits.length}...${c.reset}`);
-    for (const file of split.files) runGit(['add', file]);
-    runGit(['commit', '-m', split.message]);
+    const patchFile = path.join(tmpDir, `${String(i + 1).padStart(2, '0')}-${split.message.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}.patch`);
+    fs.writeFileSync(patchFile, split.diff);
+    patchFiles.push(patchFile);
+    console.log(`  ${c.dim}Saved patch ${i + 1}: ${path.basename(patchFile)}${c.reset}`);
   }
+
+  // Hard reset to remove the commit
+  console.log(`\n${c.dim}Hard resetting HEAD~1...${c.reset}`);
+  const { ok: resetOk, output: resetOut } = runGit(['reset', '--hard', 'HEAD~1']);
+  if (!resetOk) {
+    console.log(`${c.red}Error: Failed to hard reset: ${resetOut}${c.reset}`);
+    console.log(`${c.yellow}Patches saved in: ${tmpDir}${c.reset}`);
+    return false;
+  }
+
+  // Apply patches one by one
+  for (const [i, split] of plan.splits.entries()) {
+    const patchFile = patchFiles[i];
+    console.log(`\n${c.dim}Applying patch ${i + 1}/${plan.splits.length}: ${split.message.slice(0, 40)}...${c.reset}`);
+    
+    // Apply the patch
+    const { ok: applyOk, output: applyOut } = runGit(['apply', '--check', patchFile]);
+    if (!applyOk) {
+      console.log(`${c.red}Patch ${i + 1} would fail to apply:${c.reset}`);
+      console.log(`  ${applyOut}`);
+      console.log(`\n${c.yellow}Patches saved in: ${tmpDir}${c.reset}`);
+      console.log(`${c.yellow}You can manually apply remaining patches with: git apply <patch>${c.reset}`);
+      return false;
+    }
+
+    // Actually apply it
+    runGit(['apply', patchFile]);
+
+    // Stage and commit
+    runGit(['add', '-A']);
+    const { ok: commitOk, output: commitOut } = runGit(['commit', '-m', split.message]);
+    if (!commitOk) {
+      console.log(`${c.red}Error creating commit ${i + 1}: ${commitOut}${c.reset}`);
+      console.log(`${c.yellow}Patches saved in: ${tmpDir}${c.reset}`);
+      return false;
+    }
+    console.log(`  ${c.green}✓${c.reset} Created: ${split.message.slice(0, 50)}`);
+  }
+
+  // Cleanup temp directory
+  try {
+    for (const f of fs.readdirSync(tmpDir)) fs.unlinkSync(path.join(tmpDir, f));
+    fs.rmdirSync(tmpDir);
+  } catch { /* ignore cleanup errors */ }
 
   console.log(`\n${c.green}✓ Successfully split into ${plan.splits.length} commits!${c.reset}`);
   
