@@ -685,7 +685,6 @@ async function main() {
     n: undefined as number | undefined,
     strict: false,
     verbose: false,
-    llm: false,
     model: process.env.GIT_FISSION_MODEL || DEFAULT_MODEL,
     split: undefined as string | undefined,
     splitModel: process.env.GIT_FISSION_SPLIT_MODEL || SPLIT_MODEL,
@@ -698,7 +697,6 @@ async function main() {
     if (arg === '-n' || arg === '--number') flags.n = parseInt(args[++i]);
     else if (arg === '--strict') flags.strict = true;
     else if (arg === '-v' || arg === '--verbose') flags.verbose = true;
-    else if (arg === '--llm') flags.llm = true;
     else if (arg === '--model') flags.model = args[++i];
     else if (arg === '--split') flags.split = args[++i];
     else if (arg === '--split-model') flags.splitModel = args[++i];
@@ -715,8 +713,7 @@ Options:
   -n, --number <n>     Check last n unpushed commits
   --strict             Use stricter thresholds
   -v, --verbose        Verbose output
-  --llm                Use LLM for semantic analysis
-  --model <id>         Bedrock model ID
+  --model <id>         Bedrock model ID for analysis
   --split <commit>     Split a commit into atomic commits
   --split-model <id>   Model for split analysis
   --dry-run            Preview split without executing
@@ -752,20 +749,19 @@ Environment:
   }
 
   console.log(LOGO);
-  const mode = flags.llm ? `LLM (${flags.model.split('/').pop()})` : 'heuristic';
-  console.log(`${c.bold}Checking ${commits.length} unpushed commit(s)...${c.reset} [${mode}]`);
+  console.log(`${c.bold}Checking ${commits.length} unpushed commit(s)...${c.reset} [LLM: ${flags.model.split('/').pop()}]`);
 
   let allAtomic = true;
   let totalScore = 0;
 
   for (const hash of commits.reverse()) {
-    const commit = getCommitInfo(hash, flags.llm);
+    const commit = getCommitInfo(hash, true);
     if (!commit) {
       console.log(`${c.yellow}Warning: Could not get info for ${hash.slice(0, 8)}${c.reset}`);
       continue;
     }
 
-    const report = await checkCommitAtomicity(commit, flags.strict, flags.llm, flags.model);
+    const report = await checkCommitAtomicity(commit, flags.strict, true, flags.model);
     printReport(report, flags.verbose);
 
     if (!report.isAtomic) allAtomic = false;
