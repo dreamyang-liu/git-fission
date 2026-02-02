@@ -31,8 +31,6 @@ async function main() {
     dryRun: false,
     help: false,
     instruction: undefined as string | undefined,
-    lineLevel: false,
-    debug: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -49,8 +47,6 @@ async function main() {
     else if (arg === '--dry-run') flags.dryRun = true;
     else if (arg === '-h' || arg === '--help') flags.help = true;
     else if (arg === '--instruction' || arg === '-i') flags.instruction = args[++i];
-    else if (arg === '--line-level' || arg === '-L') flags.lineLevel = true;
-    else if (arg === '--debug') flags.debug = true;
   }
 
   // Parse model string - supports "provider:model" format or just "model"
@@ -68,10 +64,8 @@ Options:
   -v, --verbose        Verbose output
   -p, --provider <p>   LLM provider: bedrock, anthropic, openai, openrouter
   -m, --model <id>     Model ID (or use provider:model format)
-  --split <commit>     Split a commit (hunk-level, fast & stable)
-  -L, --line-level     Use line-level splitting (experimental)
+  --split <commit>     Split a commit into atomic pieces
   --dry-run            Preview split without executing
-  --debug              Write intermediate results to .git-fission-debug/
   -i, --instruction    Custom instruction for the LLM
   -h, --help           Show help
 
@@ -102,7 +96,7 @@ Environment:
 
   // Split mode
   if (flags.split) {
-    const success = await splitCommit(flags.split, llmConfig, flags.dryRun, flags.lineLevel, flags.instruction, flags.debug);
+    const success = await splitCommit(flags.split, llmConfig, flags.dryRun, flags.instruction);
     process.exit(success ? 0 : 1);
   }
 

@@ -117,13 +117,7 @@ export async function executeSplit(commit: CommitInfo, plan: SplitPlan, dryRun: 
   return true;
 }
 
-export async function splitCommit(commitRef: string, config: LLMConfig, dryRun: boolean, lineLevel: boolean = false, instruction?: string, debug?: boolean): Promise<boolean> {
-  // Use line-level splitting if requested
-  if (lineLevel) {
-    const { splitCommitLineLevel } = await import('./line-split/index.js');
-    return splitCommitLineLevel(commitRef, config, dryRun, instruction, debug);
-  }
-
+export async function splitCommit(commitRef: string, config: LLMConfig, dryRun: boolean, instruction?: string): Promise<boolean> {
   console.log(`${c.bold}Analyzing commit for split...${c.reset}`);
   if (instruction) {
     console.log(`  ${c.cyan}Custom instruction: ${instruction.slice(0, 200)}${instruction.length > 200 ? '...' : ''}${c.reset}`);
