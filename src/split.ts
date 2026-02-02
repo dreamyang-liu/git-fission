@@ -5,7 +5,7 @@
 import { c } from './config.js';
 import { runGit, getCommitInfo } from './git.js';
 import { generateSplitPlan } from './llm.js';
-import type { CommitInfo, SplitPlan } from './types.js';
+import type { CommitInfo, LLMConfig, SplitPlan } from './types.js';
 
 export async function executeSplit(commit: CommitInfo, plan: SplitPlan, dryRun: boolean): Promise<boolean> {
   const fs = await import('fs');
@@ -117,11 +117,11 @@ export async function executeSplit(commit: CommitInfo, plan: SplitPlan, dryRun: 
   return true;
 }
 
-export async function splitCommit(commitRef: string, model: string, dryRun: boolean, lineLevel: boolean = false, instruction?: string, debug?: boolean): Promise<boolean> {
+export async function splitCommit(commitRef: string, config: LLMConfig, dryRun: boolean, lineLevel: boolean = false, instruction?: string, debug?: boolean): Promise<boolean> {
   // Use line-level splitting if requested
   if (lineLevel) {
     const { splitCommitLineLevel } = await import('./line-split/index.js');
-    return splitCommitLineLevel(commitRef, model, dryRun, instruction, debug);
+    return splitCommitLineLevel(commitRef, config, dryRun, instruction, debug);
   }
 
   console.log(`${c.bold}Analyzing commit for split...${c.reset}`);
@@ -148,7 +148,7 @@ export async function splitCommit(commitRef: string, model: string, dryRun: bool
   }
 
   console.log(`\n${c.dim}Generating split plan with LLM...${c.reset}`);
-  const plan = await generateSplitPlan(commit, model, instruction);
+  const plan = await generateSplitPlan(commit, config, instruction);
 
   if (!plan) {
     console.log(`${c.red}Error: LLM failed to generate a split plan.${c.reset}`);

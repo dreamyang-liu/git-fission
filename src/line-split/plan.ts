@@ -3,8 +3,8 @@
  * LLM reads the entire diff and decides how to split it into atomic commits
  */
 
-import { callBedrock } from '../llm.js';
-import type { CommitInfo } from '../types.js';
+import { callLLM } from '../llm.js';
+import type { CommitInfo, LLMConfig } from '../types.js';
 
 /**
  * A planned commit with metadata for subsequent classification
@@ -31,7 +31,7 @@ export interface SplitPlanResult {
  */
 export async function generateCommitPlan(
   commit: CommitInfo,
-  model: string,
+  config: LLMConfig,
   instruction?: string
 ): Promise<SplitPlanResult | null> {
   const customInstruction = instruction ? `\n**Custom Instruction:** ${instruction}\n` : '';
@@ -80,7 +80,7 @@ Output a JSON plan (DO NOT output any diff content, only the plan):
 If the commit is already atomic, return a single commit with all changes.
 Only output the JSON, nothing else.`;
 
-  const response = await callBedrock(prompt, model, 32768);
+  const response = await callLLM(prompt, config, 32768);
   if (!response) {
     return null;
   }

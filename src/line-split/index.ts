@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { c } from '../config.js';
 import { runGit, getCommitInfo, parseDiffIntoHunks } from '../git.js';
-import type { CommitInfo, SplitPlan } from '../types.js';
+import type { CommitInfo, LLMConfig, SplitPlan } from '../types.js';
 import { generateCommitPlan } from './plan.js';
 import { classifyAllHunks } from './classify.js';
 import { extractChanges, validateExtraction } from './extract.js';
@@ -29,7 +29,7 @@ function writeDebugFile(debugDir: string, filename: string, content: string | ob
  */
 export async function lineLevelSplit(
   commit: CommitInfo,
-  model: string,
+  config: LLMConfig,
   instruction?: string,
   debugDir?: string
 ): Promise<SplitPlan | null> {
@@ -48,7 +48,7 @@ export async function lineLevelSplit(
 
   // Phase 1: Generate commit plan
   console.log(`  ${c.dim}Phase 1: Generating commit plan...${c.reset}`);
-  const plan = await generateCommitPlan(commit, model, instruction);
+  const plan = await generateCommitPlan(commit, config, instruction);
 
   if (!plan) {
     console.error(`  ${c.red}Error: Failed to generate commit plan${c.reset}`);
@@ -84,7 +84,7 @@ export async function lineLevelSplit(
   }
 
   // Phase 2: Classify lines in each hunk
-  const classifications = await classifyAllHunks(files, plan.commits, model);
+  const classifications = await classifyAllHunks(files, plan.commits, config);
   console.log(`  ${c.green}✓${c.reset} Classified all hunks`);
 
   // Debug: write classifications
@@ -176,7 +176,7 @@ export async function lineLevelSplit(
  */
 export async function splitCommitLineLevel(
   commitRef: string,
-  model: string,
+  config: LLMConfig,
   dryRun: boolean,
   instruction?: string,
   debug?: boolean
@@ -207,7 +207,7 @@ export async function splitCommitLineLevel(
   // Setup debug directory if debug mode is enabled
   const debugDir = debug ? `.git-fission-debug/${commit.shortHash}` : undefined;
 
-  const plan = await lineLevelSplit(commit, model, instruction, debugDir);
+  const plan = await lineLevelSplit(commit, config, instruction, debugDir);
 
   if (!plan) {
     console.log(`${c.red}Error: Failed to generate line-level split plan.${c.reset}`);

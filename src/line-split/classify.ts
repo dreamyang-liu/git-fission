@@ -3,9 +3,10 @@
  * For each hunk, LLM decides which lines belong to which commit
  */
 
-import { callBedrock } from '../llm.js';
+import { callLLM } from '../llm.js';
 import type { ParsedFileDiff, ParsedHunk } from '../git.js';
 import type { CommitPlan } from './plan.js';
+import type { LLMConfig } from '../types.js';
 
 /**
  * Classification result for a single line
@@ -50,7 +51,7 @@ function formatCommitOptions(commits: CommitPlan[]): string {
 export async function classifyHunkLines(
   hunk: ParsedHunk,
   commits: CommitPlan[],
-  model: string
+  config: LLMConfig
 ): Promise<LineClassification[]> {
   // Find changed lines (+ or -)
   const hunkLines = hunk.content.split('\n');
@@ -100,7 +101,7 @@ Output JSON array only:
 
 Only output the JSON array, nothing else.`;
 
-  const response = await callBedrock(prompt, model, 2048);
+  const response = await callLLM(prompt, config, 2048);
   if (!response) {
     // Fallback: assign all to first commit
     return changedLineIndices.map(idx => ({
@@ -165,7 +166,7 @@ Only output the JSON array, nothing else.`;
 export async function classifyAllHunks(
   files: ParsedFileDiff[],
   commits: CommitPlan[],
-  model: string,
+  config: LLMConfig,
   concurrency: number = 5
 ): Promise<HunkClassificationResult[]> {
   const allHunks: Array<{ hunk: ParsedHunk; filePath: string }> = [];
@@ -183,7 +184,7 @@ export async function classifyAllHunks(
     const batch = allHunks.slice(i, i + concurrency);
     const batchResults = await Promise.all(
       batch.map(async ({ hunk, filePath }) => {
-        const lines = await classifyHunkLines(hunk, commits, model);
+        const lines = await classifyHunkLines(hunk, commits, config);
         return {
           hunkId: hunk.id,
           filePath,
