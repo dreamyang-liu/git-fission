@@ -37,7 +37,7 @@ ${c.dim}                  Split commits into atomic pieces${c.reset}
 export const DEFAULT_MODELS = {
   bedrock: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
   anthropic: 'claude-3-5-haiku-20241022',
-  openai: 'gpt-4o-mini',
+  openai: 'gpt-5-mini-2025-08-07',
   openrouter: 'anthropic/claude-3.5-haiku',
 } as const;
 

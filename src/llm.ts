@@ -104,7 +104,7 @@ async function callOpenAI(prompt: string, model: string, maxTokens: number, apiK
       body: JSON.stringify({
         model,
         max_completion_tokens: maxTokens,
-        temperature: 0.1,
+        temperature: 1,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
