@@ -247,7 +247,8 @@ function generateHunkSummary(content: string): string {
 }
 
 /**
- * Rebuild a patch from selected hunks
+ * Rebuild a patch from selected hunks, properly adjusting line numbers
+ * to account for changes from previous hunks in this patch.
  */
 export function rebuildPatchFromHunks(
   files: ParsedFileDiff[],
@@ -261,8 +262,37 @@ export function rebuildPatchFromHunks(
     if (selectedHunks.length === 0) continue;
 
     patchParts.push(file.fileHeader);
+
+    // Track cumulative line offset for this file
+    // (lines added minus lines removed by previous hunks in THIS patch)
+    let cumulativeOffset = 0;
+
     for (const hunk of selectedHunks) {
-      patchParts.push(hunk.fullHunk);
+      // Parse the original @@ header
+      const headerMatch = hunk.header.match(/@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@(.*)/);
+      if (!headerMatch) {
+        // Fallback to original if can't parse
+        patchParts.push(hunk.fullHunk);
+        continue;
+      }
+
+      const oldStart = parseInt(headerMatch[1]);
+      const oldCount = headerMatch[2] ? parseInt(headerMatch[2]) : 1;
+      const newCount = headerMatch[4] ? parseInt(headerMatch[4]) : 1;
+      const suffix = headerMatch[5] || '';
+
+      // Calculate adjusted new start based on cumulative offset
+      const adjustedNewStart = oldStart + cumulativeOffset;
+
+      // Build new header with adjusted line number
+      const newHeader = `@@ -${oldStart},${oldCount} +${adjustedNewStart},${newCount} @@${suffix}`;
+
+      // Rebuild the hunk with new header
+      patchParts.push(newHeader + '\n' + hunk.content);
+
+      // Update cumulative offset for next hunk
+      // (lines added - lines removed in this hunk)
+      cumulativeOffset += (newCount - oldCount);
     }
   }
 
