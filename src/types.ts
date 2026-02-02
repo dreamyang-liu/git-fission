@@ -2,6 +2,14 @@
  * Type definitions for git-fission
  */
 
+export type LLMProvider = 'bedrock' | 'anthropic' | 'openai' | 'openrouter';
+
+export interface LLMConfig {
+  provider: LLMProvider;
+  model: string;
+  apiKey?: string;
+}
+
 export interface CommitInfo {
   hash: string;
   shortHash: string;
