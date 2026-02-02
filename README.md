@@ -177,7 +177,8 @@ Original commit with 3 hunks in file.ts:
 Operates at the **line level**, allowing changes within the same hunk to be split into different commits.
 
 **Pros**: Finer granularity, can split interleaved changes
-**Cons**: Slower (multiple LLM calls), may produce invalid patches
+
+**Cons**: Slower (multiple LLM calls), may produce invalid patches, unstable for large commit
 
 Uses a 4-phase pipeline:
 
