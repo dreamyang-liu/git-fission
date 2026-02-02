@@ -57,20 +57,14 @@ git-fission
 ### Split a commit
 
 ```bash
-# Hunk-level splitting (default, faster & more stable)
+# Split a commit into atomic pieces
 git-fission --split HEAD
-
-# Line-level splitting (experimental, finer granularity)
-git-fission --split HEAD -L
 
 # Preview without executing
 git-fission --split HEAD --dry-run
 
 # With custom instruction
 git-fission --split HEAD -i "Keep test files in a separate commit"
-
-# Debug mode
-git-fission --split HEAD -L --debug --dry-run
 
 # Use different providers
 git-fission --split HEAD -p anthropic                    # Anthropic (default model)
@@ -129,10 +123,8 @@ mno7890 test: Add user authentication tests
 | `-v, --verbose` | Verbose output |
 | `-p, --provider <p>` | LLM provider: `bedrock`, `anthropic`, `openai`, `openrouter` |
 | `-m, --model <id>` | Model ID (or use `provider:model` format) |
-| `--split <commit>` | Split a commit (hunk-level, fast & stable) |
-| `-L, --line-level` | Use line-level splitting (experimental) |
+| `--split <commit>` | Split a commit into atomic pieces |
 | `--dry-run` | Preview split without executing |
-| `--debug` | Write intermediate results to `.git-fission-debug/` |
 | `-i, --instruction` | Custom instruction for LLM |
 | `-h, --help` | Show help |
 
@@ -201,19 +193,12 @@ git-fission -m openrouter:anthropic/claude-3.5-haiku
 - **Multi-Provider Support**: Works with Anthropic, OpenAI, OpenRouter, and AWS Bedrock
 - **LLM Analysis**: Deep semantic analysis using state-of-the-art language models
 - **Auto-Split**: Automatically split large commits into atomic ones
-- **Hunk-Level Splitting**: Fast & stable, splits at diff hunk boundaries (default)
-- **Line-Level Splitting**: Experimental, splits individual lines within the same hunk (`-L`)
+- **Hunk-Level Splitting**: Fast & stable, splits at diff hunk boundaries
 - **Custom Instructions**: Guide the LLM with custom splitting rules
-- **Debug Mode**: Inspect intermediate results for troubleshooting
 
 ## How Splitting Works
 
-### Hunk-Level (Default) — Fast & Stable
-
-Operates at the **hunk level**. A hunk is a contiguous block of changes in a diff (the sections starting with `@@`). The AI analyzes each hunk and classifies them into logical groups.
-
-**Pros**: Fast (single LLM call), reliable patch generation
-**Cons**: Cannot split changes within the same hunk
+The tool operates at the **hunk level**. A hunk is a contiguous block of changes in a diff (the sections starting with `@@`). The AI analyzes each hunk and classifies them into logical groups.
 
 ```
 Original commit with 3 hunks in file.ts:
@@ -222,71 +207,11 @@ Original commit with 3 hunks in file.ts:
 │ @@ -50,3 +53,6 @@  ← Hunk 2    │
 │ @@ -100,4 +106,4 @@ ← Hunk 3   │
 └─────────────────────────────────┘
-           ↓ git-fission
+           ↓ git-fission --split
 ┌─────────────┐  ┌─────────────┐
 │ Commit A    │  │ Commit B    │
 │ Hunk 1 + 3  │  │ Hunk 2      │
 └─────────────┘  └─────────────┘
-```
-
-### Line-Level (`-L` flag) — Experimental
-
-Operates at the **line level**, allowing changes within the same hunk to be split into different commits.
-
-**Pros**: Finer granularity, can split interleaved changes
-
-**Cons**: Slower (multiple LLM calls), may produce invalid patches, unstable for large commit
-
-Uses a 4-phase pipeline:
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Phase 1        │     │  Phase 2        │     │  Phase 3        │     │  Phase 4        │
-│  Plan Commits   │ ──▶ │  Classify Lines │ ──▶ │  Extract Lines  │ ──▶ │  Build Patches  │
-│  (LLM)          │     │  (LLM per hunk) │     │  (Script)       │     │  (Script)       │
-└─────────────────┘     └─────────────────┘     └─────────────────┘     └─────────────────┘
-```
-
-1. **Phase 1 (Plan)**: LLM reads the entire diff and decides how many commits to create
-2. **Phase 2 (Classify)**: For each hunk, LLM decides which lines belong to which commit
-3. **Phase 3 (Extract)**: Script extracts line content from original diff (no LLM generation)
-4. **Phase 4 (Assemble)**: Script builds patches, handling cross-commit dependencies
-
-**Key Design**: LLM only makes decisions (which lines go where), script handles all diff generation. This avoids LLM formatting errors.
-
-```
-Same hunk, different commits:
-┌─────────────────────────────────┐
-│ @@ -10,5 +10,12 @@              │
-│  context line                   │
-│ +import { auth } from './auth'  │ ← Commit A
-│ +import { cache } from './cache'│ ← Commit B
-│  context line                   │
-│ +function login() { ... }       │ ← Commit A
-│ +function initCache() { ... }   │ ← Commit B
-└─────────────────────────────────┘
-           ↓ git-fission -L
-┌─────────────┐  ┌─────────────┐
-│ Commit A    │  │ Commit B    │
-│ auth import │  │ cache import│
-│ login()     │  │ initCache() │
-└─────────────┘  └─────────────┘
-```
-
-### Debug Mode
-
-Use `--debug` to write intermediate results to `.git-fission-debug/<commit-hash>/`:
-
-```
-.git-fission-debug/abc1234/
-├── 00-original.diff           # Original diff
-├── 01-plan.json               # Phase 1: Commit plan from LLM
-├── 02-hunks.json              # Parsed hunks
-├── 03-classifications.json    # Phase 2: Line classifications
-├── 04-extracted.json          # Phase 3: Extracted line ranges
-├── 05-patch-1-commit_1.patch  # Phase 4: Generated patches
-├── 05-patch-2-commit_2.patch
-└── 05-patches-summary.json
 ```
 
 ## Requirements
