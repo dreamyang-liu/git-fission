@@ -4,14 +4,16 @@
 
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import fetch from 'node-fetch';
-import type { CommitInfo, LLMAnalysis, SplitPlan } from './types.js';
+import type { CommitInfo, LLMAnalysis, LLMConfig, LLMProvider, SplitPlan } from './types.js';
 
-export async function callBedrock(prompt: string, model: string, maxTokens = 1024): Promise<string | null> {
+/**
+ * Call AWS Bedrock
+ */
+async function callBedrock(prompt: string, model: string, maxTokens: number): Promise<string | null> {
   const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
   const region = process.env.AWS_REGION || 'us-west-2';
 
   if (bearerToken) {
-    // Use bearer token via fetch
     const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${model}/converse`;
     const body = JSON.stringify({
       messages: [{ role: 'user', content: [{ text: prompt }] }],
@@ -31,7 +33,6 @@ export async function callBedrock(prompt: string, model: string, maxTokens = 102
       return null;
     }
   } else {
-    // Use AWS SDK
     const client = new BedrockRuntimeClient({ region });
     try {
       const resp = await client.send(new ConverseCommand({
@@ -46,7 +47,163 @@ export async function callBedrock(prompt: string, model: string, maxTokens = 102
   }
 }
 
-export async function analyzeWithLLM(commit: CommitInfo, model: string): Promise<LLMAnalysis | null> {
+/**
+ * Call Anthropic API directly
+ */
+async function callAnthropic(prompt: string, model: string, maxTokens: number, apiKey?: string): Promise<string | null> {
+  const key = apiKey || process.env.ANTHROPIC_API_KEY;
+  if (!key) {
+    console.error('ANTHROPIC_API_KEY not set');
+    return null;
+  }
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    const data = await resp.json() as any;
+    if (data.error) {
+      console.error('Anthropic API error:', data.error.message);
+      return null;
+    }
+    return data.content?.[0]?.text || null;
+  } catch (e) {
+    console.error('Anthropic API call failed:', e);
+    return null;
+  }
+}
+
+/**
+ * Call OpenAI API
+ */
+async function callOpenAI(prompt: string, model: string, maxTokens: number, apiKey?: string): Promise<string | null> {
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  if (!key) {
+    console.error('OPENAI_API_KEY not set');
+    return null;
+  }
+
+  try {
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_completion_tokens: maxTokens,
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    const data = await resp.json() as any;
+    if (data.error) {
+      console.error('OpenAI API error:', data.error.message);
+      return null;
+    }
+    return data.choices?.[0]?.message?.content || null;
+  } catch (e) {
+    console.error('OpenAI API call failed:', e);
+    return null;
+  }
+}
+
+/**
+ * Call OpenRouter API
+ */
+async function callOpenRouter(prompt: string, model: string, maxTokens: number, apiKey?: string): Promise<string | null> {
+  const key = apiKey || process.env.OPENROUTER_API_KEY;
+  if (!key) {
+    console.error('OPENROUTER_API_KEY not set');
+    return null;
+  }
+
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    const data = await resp.json() as any;
+    if (data.error) {
+      console.error('OpenRouter API error:', data.error.message);
+      return null;
+    }
+    return data.choices?.[0]?.message?.content || null;
+  } catch (e) {
+    console.error('OpenRouter API call failed:', e);
+    return null;
+  }
+}
+
+/**
+ * Main LLM call function - routes to the appropriate provider
+ */
+export async function callLLM(prompt: string, config: LLMConfig, maxTokens = 1024): Promise<string | null> {
+  switch (config.provider) {
+    case 'bedrock':
+      return callBedrock(prompt, config.model, maxTokens);
+    case 'anthropic':
+      return callAnthropic(prompt, config.model, maxTokens, config.apiKey);
+    case 'openai':
+      return callOpenAI(prompt, config.model, maxTokens, config.apiKey);
+    case 'openrouter':
+      return callOpenRouter(prompt, config.model, maxTokens, config.apiKey);
+    default:
+      console.error(`Unknown provider: ${config.provider}`);
+      return null;
+  }
+}
+
+/**
+ * Parse model string into LLMConfig
+ * Supports formats:
+ *   - "provider:model" (e.g., "anthropic:claude-3-5-sonnet-20241022")
+ *   - "model" (uses default provider from env or bedrock)
+ */
+export function parseModelString(modelStr: string, defaultProvider: LLMProvider = 'bedrock'): LLMConfig {
+  const colonIndex = modelStr.indexOf(':');
+
+  // Check if it looks like "provider:model"
+  const providers: LLMProvider[] = ['bedrock', 'anthropic', 'openai', 'openrouter'];
+  if (colonIndex > 0) {
+    const prefix = modelStr.substring(0, colonIndex);
+    if (providers.includes(prefix as LLMProvider)) {
+      return {
+        provider: prefix as LLMProvider,
+        model: modelStr.substring(colonIndex + 1),
+      };
+    }
+  }
+
+  // No provider prefix - use default provider
+  return {
+    provider: defaultProvider,
+    model: modelStr,
+  };
+}
+
+export async function analyzeWithLLM(commit: CommitInfo, config: LLMConfig): Promise<LLMAnalysis | null> {
   const filesSum = commit.files.slice(0, 20).map(f => `  - ${f}`).join('\n');
   const prompt = `Analyze this git commit and determine if it is ATOMIC (does exactly one logical thing).
 
@@ -71,7 +228,7 @@ Respond in JSON format:
 
 Only output the JSON.`;
 
-  const response = await callBedrock(prompt, model);
+  const response = await callLLM(prompt, config);
   if (!response) return null;
 
   try {
@@ -126,7 +283,7 @@ function formatHunkForLLM(hunk: { id: number; startLine: number; content: string
 export async function classifyHunks(
   commit: CommitInfo,
   files: ParsedFileDiff[],
-  model: string,
+  config: LLMConfig,
   instruction?: string
 ): Promise<HunkClassification | null> {
   // Build display for LLM - show hunks with their IDs and actual diff content
@@ -176,7 +333,7 @@ Respond in JSON:
 If the commit is already atomic, return a single commit with all hunk IDs.
 Only output the JSON.`;
 
-  const response = await callBedrock(prompt, model, 8192);
+  const response = await callLLM(prompt, config, 8192);
   if (!response) {
     console.error('  LLM returned no response');
     return null;
@@ -198,7 +355,7 @@ Only output the JSON.`;
 /**
  * Generate split plan using hunk-level classification
  */
-export async function generateSplitPlan(commit: CommitInfo, model: string, instruction?: string): Promise<SplitPlan | null> {
+export async function generateSplitPlan(commit: CommitInfo, config: LLMConfig, instruction?: string): Promise<SplitPlan | null> {
   if (!commit.diff) return null;
 
   // Parse diff into hunks
@@ -212,7 +369,7 @@ export async function generateSplitPlan(commit: CommitInfo, model: string, instr
   console.log(`  ${totalHunks} hunks across ${files.length} files`);
 
   // Ask LLM to classify hunks
-  const classification = await classifyHunks(commit, files, model, instruction);
+  const classification = await classifyHunks(commit, files, config, instruction);
   if (!classification) return null;
 
   // Build patches from hunk classification
